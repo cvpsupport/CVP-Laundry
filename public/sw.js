@@ -6,15 +6,15 @@ self.addEventListener("push", (event) => {
   try {
     data = event.data ? event.data.json() : {};
   } catch {
-    data = { title: "MEW Laundry", body: event.data ? event.data.text() : "มีการอัปเดตสถานะเครื่องซักผ้า" };
+    data = { title: "CVP Laundry", body: event.data ? event.data.text() : "มีการอัปเดตสถานะเครื่องซักผ้า" };
   }
 
-  const title = data.title || "MEW Laundry";
+  const title = data.title || "CVP Laundry";
   const options = {
     body: data.body || "มีการอัปเดตสถานะเครื่องซักผ้า",
     icon: "/icon-192.png",
     badge: "/icon-192.png",
-    tag: data.tag || "mew-laundry",
+    tag: data.tag || "cvp-laundry",
     renotify: true,
     data: { url: data.url || "/" },
   };

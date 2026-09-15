@@ -174,12 +174,12 @@ export default function Dashboard() {
   }, [machines]);
 
   const syncPushSelection = useCallback(async (nextMachines: number[]) => {
-    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
-      throw new Error("อุปกรณ์นี้ไม่รองรับ Web Push");
+    if (isIosNeedsInstall) {
+      throw new Error("📱 หากใช้ iPhone กรุณาเพิ่ม CVP Laundry ไปที่หน้าจอโฮมก่อนเปิดการแจ้งเตือน");
     }
 
-    if (isIosNeedsInstall) {
-      throw new Error("บน iPhone/iPad กรุณา Add to Home Screen แล้วเปิดจากไอคอน MEW Laundry ก่อนเปิดแจ้งเตือน");
+    if (!("serviceWorker" in navigator) || !("PushManager" in window) || !("Notification" in window)) {
+      throw new Error("อุปกรณ์นี้ไม่รองรับ Web Push");
     }
 
     let currentPermission = Notification.permission;
@@ -258,9 +258,9 @@ export default function Dashboard() {
       <section className="hero">
         <div>
           <div className="brandRow">
-            <div className="logoMark">M</div>
+            <div className="logoMark">C</div>
             <div>
-              <div className="eyebrow">MEW LAUNDRY</div>
+              <div className="eyebrow">CVP LAUNDRY</div>
               <h1>สถานะเครื่องซัก / อบผ้า</h1>
             </div>
           </div>
@@ -284,8 +284,8 @@ export default function Dashboard() {
         <div className="notificationCopy">
           <strong>แจ้งเตือนบนมือถือ</strong>
           <span>{pushMessage}</span>
-          {isIosNeedsInstall && <small>iPhone/iPad: กด Share → Add to Home Screen แล้วเปิดเว็บจากไอคอนบนหน้าจอ จากนั้นจึงกดเปิดแจ้งเตือน</small>}
-          {pushSupported === false && <small>เบราว์เซอร์นี้ไม่รองรับ Web Push กรุณาใช้เบราว์เซอร์รุ่นใหม่</small>}
+          {isIosNeedsInstall && <small>📱 หากใช้ iPhone กรุณาเพิ่ม CVP Laundry ไปที่หน้าจอโฮมก่อนเปิดการแจ้งเตือน</small>}
+          {pushSupported === false && !isIosNeedsInstall && <small>เบราว์เซอร์นี้ไม่รองรับ Web Push กรุณาใช้เบราว์เซอร์รุ่นใหม่</small>}
           {permission === "denied" && <small>การแจ้งเตือนถูกบล็อกอยู่ ต้องอนุญาต Notification จากการตั้งค่าเบราว์เซอร์/เครื่อง</small>}
         </div>
         {selectedMachines.length > 0 && (
@@ -345,12 +345,12 @@ export default function Dashboard() {
                 <button
                   type="button"
                   className={`bellButton ${selected ? "selected" : ""}`}
-                  disabled={!canTrack || pushBusy !== null || pushSupported === false}
+                  disabled={!canTrack || pushBusy !== null || (pushSupported === false && !isIosNeedsInstall)}
                   onClick={() => toggleNotification(machine.machine_no)}
                   aria-pressed={selected}
                 >
                   <span>{selected ? "🔔" : "🔕"}</span>
-                  {pushBusy === machine.machine_no ? "กำลังตั้งค่า..." : selected ? "กำลังแจ้งเตือนเครื่องนี้" : canTrack ? "แจ้งเตือนเครื่องนี้" : "เริ่มใช้งานแล้วจึงเปิดแจ้งเตือน"}
+                  {pushBusy === machine.machine_no ? "กำลังตั้งค่า..." : selected ? "กำลังแจ้งเตือนเครื่องนี้" : canTrack ? (isIosNeedsInstall ? "เปิดวิธีตั้งค่าแจ้งเตือนบน iPhone" : "แจ้งเตือนเครื่องนี้") : "เริ่มใช้งานแล้วจึงเปิดแจ้งเตือน"}
                 </button>
               </article>
             );
@@ -371,7 +371,7 @@ export default function Dashboard() {
       )}
 
       <footer>
-        <span>MEW Laundry Monitoring</span>
+        <span>CVP Laundry Monitoring</span>
         <a href="/qr">เปิด QR สำหรับติดหน้าร้าน</a>
       </footer>
     </main>

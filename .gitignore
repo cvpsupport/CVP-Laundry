@@ -3,9 +3,3 @@ node_modules
 .env*.local
 .vercel
 .DS_Store
-
-node_modules/
-.next/
-.env
-.env.local
-.env*.local

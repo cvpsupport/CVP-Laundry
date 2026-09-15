@@ -3,7 +3,7 @@
 #include <WiFiClientSecure.h>
 
 // =========================
-// MEW Laundry - 4 machines
+// CVP Laundry - 4 machines
 // =========================
 // Each input must be an ISOLATED low-voltage/dry-contact RUN signal.
 // Never connect ESP32 GPIO directly to mains voltage.
@@ -192,7 +192,7 @@ void setup() {
   }
 
   ensureWiFi();
-  Serial.println("MEW Laundry controller started");
+  Serial.println("CVP Laundry controller started");
 }
 
 void loop() {

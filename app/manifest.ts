@@ -3,9 +3,9 @@ import type { MetadataRoute } from "next";
 export default function manifest(): MetadataRoute.Manifest {
   return {
     id: "/",
-    name: "MEW Laundry",
-    short_name: "MEW Laundry",
-    description: "ดูสถานะเครื่องซักผ้าและรับแจ้งเตือนเมื่อใกล้เสร็จหรือซักเสร็จ",
+    name: "CVP Laundry",
+    short_name: "CVP Laundry",
+    description: "ดูสถานะเครื่องซัก/อบผ้าและรับแจ้งเตือนเมื่อใกล้เสร็จหรือทำงานเสร็จ",
     start_url: "/",
     display: "standalone",
     background_color: "#f5f7fb",

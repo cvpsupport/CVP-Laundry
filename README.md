@@ -1,16 +1,16 @@
-# MEW Laundry Monitoring v1.1
+# CVP Laundry Monitoring v1.3
 
-Mobile-first washer status web app for four machines. One QR opens one dashboard. The app shows live status/countdown and supports per-machine Web Push notifications when a selected washer is nearly finished and when it is finished.
+Mobile-first laundry status web app for 3 washers and 1 dryer. One QR opens one dashboard. The app shows live status/countdown and supports per-machine Web Push notifications when a selected machine is nearly finished and when it is finished.
 
 ## What is included
 
-- One dashboard showing all 4 washers
+- One dashboard showing 3 washers and 1 dryer
 - Statuses: available, running, near finish, finished, offline
 - Countdown + expected finish time
 - One QR poster at `/qr`
 - PWA manifest + service worker
 - Per-machine notification button (each customer follows only their own washer)
-- Web Push when 5 minutes remain and when washing is finished
+- Web Push when 5 minutes remain and when washing/drying is finished
 - In-app alert while the dashboard is open
 - Supabase storage for washer status + push subscriptions
 - Protected ESP32 status API
