@@ -12,3 +12,14 @@ export type Machine = {
   end_at: string | null;
   updated_at: string;
 };
+
+export type AnnouncementTone = "info" | "warning" | "maintenance";
+
+export type Announcement = {
+  id: number;
+  title: string;
+  body: string;
+  tone: AnnouncementTone;
+  is_active: boolean;
+  updated_at: string;
+};

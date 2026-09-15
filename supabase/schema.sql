@@ -25,7 +25,7 @@ values
   (1, 'เครื่อง 01', 'washer', 50, 'available'),
   (2, 'เครื่อง 02', 'washer', 40, 'available'),
   (3, 'เครื่อง 03', 'washer', 30, 'available'),
-  (4, 'เครื่อง 04', 'dryer', null, 'available')
+  (4, 'เครื่อง 04', 'dryer', 40, 'available')
 on conflict (machine_no)
 do update set
   name = excluded.name,
@@ -48,3 +48,25 @@ create index if not exists push_subscriptions_machine_nos_idx
 -- Browsers never talk directly to these tables. All reads/writes go through server-side Vercel routes.
 alter table public.machines enable row level security;
 alter table public.push_subscriptions enable row level security;
+
+
+create table if not exists public.site_announcements (
+  id integer primary key check (id = 1),
+  title text not null,
+  body text not null,
+  tone text not null default 'info' check (tone in ('info', 'warning', 'maintenance')),
+  is_active boolean not null default true,
+  updated_at timestamptz not null default now()
+);
+
+insert into public.site_announcements (id, title, body, tone, is_active)
+values (
+  1,
+  'ประกาศจากร้าน',
+  'กรุณานำผ้าออกจากเครื่องเมื่อซักหรืออบเสร็จ เพื่อให้ผู้ใช้งานท่านถัดไปสามารถใช้บริการได้ต่อเนื่อง และสามารถติดตามเวลาที่เหลือผ่านหน้า CVP Laundry ได้ตลอดเวลา',
+  'info',
+  true
+)
+on conflict (id) do nothing;
+
+alter table public.site_announcements enable row level security;

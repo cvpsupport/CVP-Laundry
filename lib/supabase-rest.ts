@@ -1,4 +1,4 @@
-import type { Machine } from "./types";
+import type { Announcement, Machine } from "./types";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -117,4 +117,30 @@ export async function deletePushSubscription(endpoint: string) {
     cache: "no-store",
   });
   if (!response.ok) throw new Error(`Push subscription delete failed: ${response.status} ${await response.text()}`);
+}
+
+
+export async function getAnnouncement(): Promise<Announcement | null> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(
+    `${url}/rest/v1/site_announcements?select=id,title,body,tone,is_active,updated_at&id=eq.1&limit=1`,
+    { headers: headers(), cache: "no-store" }
+  );
+  if (!response.ok) throw new Error(`Announcement read failed: ${response.status} ${await response.text()}`);
+  const rows = await response.json();
+  return Array.isArray(rows) && rows.length > 0 ? rows[0] : null;
+}
+
+export async function updateAnnouncement(patch: Pick<Announcement, "title" | "body" | "tone" | "is_active">): Promise<Announcement> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(`${url}/rest/v1/site_announcements?id=eq.1`, {
+    method: "PATCH",
+    headers: headers({ Prefer: "return=representation" }),
+    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Announcement update failed: ${response.status} ${await response.text()}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Announcement row not found");
+  return rows[0];
 }

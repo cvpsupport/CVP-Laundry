@@ -198,3 +198,61 @@ footer a { color: var(--blue); text-decoration: none; font-weight: 800; }
   .ruleCard p { font-size: 10px; }
   .dryerRule summary, .dryerRuleBody p { font-size: 10px; }
 }
+
+/* Dynamic announcement tones */
+.announcementBox.info { border-color: #bfdbfe; background: #eff6ff; }
+.announcementBox.info strong { color: #1e3a8a; }
+.announcementBox.warning { border-color: #fed7aa; background: #fff7ed; }
+.announcementBox.warning strong { color: #9a3412; }
+.announcementBox.warning p { color: #7c2d12; }
+.announcementBox.maintenance { border-color: #fecaca; background: #fef2f2; }
+.announcementBox.maintenance strong { color: #991b1b; }
+.announcementBox.maintenance p { color: #7f1d1d; }
+
+/* Admin */
+.adminShell { width: min(760px, calc(100% - 28px)); margin: 0 auto; padding: 34px 0; }
+.adminCard { background: rgba(255,255,255,.96); border: 1px solid var(--line); border-radius: 24px; padding: 22px; box-shadow: 0 18px 60px rgba(15,23,42,.08); }
+.adminLoading { color: var(--muted); text-align: center; padding: 44px 20px; }
+.loginCard { width: min(480px, 100%); margin: 50px auto 0; }
+.adminBrand { display: flex; gap: 13px; align-items: center; margin-top: 22px; }
+.adminBrand h1, .adminTopbar h1 { margin: 2px 0 0; font-size: 30px; }
+.adminIntro { margin: 14px 0 20px; color: var(--muted); font-size: 13px; line-height: 1.6; }
+.adminBackLink { display: inline-block; color: var(--blue); text-decoration: none; font-size: 12px; font-weight: 800; margin-bottom: 12px; }
+.adminTopbar { display: flex; justify-content: space-between; align-items: flex-start; gap: 16px; margin-bottom: 20px; }
+.adminForm { display: grid; gap: 15px; }
+.adminForm label:not(.adminSwitchRow) { display: grid; gap: 7px; }
+.adminForm label > span { font-size: 12px; font-weight: 900; color: #334155; }
+.adminForm input[type="text"],
+.adminForm input[type="password"],
+.adminForm select,
+.adminForm textarea { width: 100%; border: 1px solid #cbd5e1; border-radius: 12px; background: white; color: var(--ink); font: inherit; font-size: 16px; padding: 11px 12px; outline: none; }
+.adminForm textarea { resize: vertical; min-height: 150px; line-height: 1.6; }
+.adminForm input:focus,
+.adminForm select:focus,
+.adminForm textarea:focus { border-color: #60a5fa; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+.adminForm label small { color: var(--muted); font-size: 10px; }
+.adminPrimary, .adminGhost { min-height: 44px; border-radius: 12px; font: inherit; font-weight: 900; cursor: pointer; }
+.adminPrimary { border: 1px solid #1d4ed8; background: #2563eb; color: white; padding: 0 18px; }
+.adminGhost { border: 1px solid var(--line); background: white; color: #475569; padding: 0 13px; font-size: 11px; }
+.adminPrimary:disabled, .adminGhost:disabled { opacity: .55; cursor: not-allowed; }
+.adminError, .adminSuccess { border-radius: 12px; padding: 10px 12px; font-size: 11px; line-height: 1.5; }
+.adminError { color: #991b1b; background: #fef2f2; border: 1px solid #fecaca; }
+.adminSuccess { color: #166534; background: #f0fdf4; border: 1px solid #bbf7d0; }
+.adminSwitchRow { display: flex; align-items: center; justify-content: space-between; gap: 14px; border: 1px solid var(--line); border-radius: 14px; padding: 12px; background: #f8fafc; }
+.adminSwitchRow > span { display: grid; gap: 3px; }
+.adminSwitchRow strong { font-size: 12px; }
+.adminSwitchRow small { color: var(--muted); font-size: 10px; font-weight: 400; }
+.adminSwitchRow input { width: 22px; height: 22px; flex: 0 0 auto; accent-color: #2563eb; }
+.adminPreviewBlock { border-top: 1px solid var(--line); padding-top: 15px; }
+.adminPreviewLabel { display: block; color: var(--muted); font-size: 10px; font-weight: 900; margin-bottom: 8px; }
+.adminPreviewBlock .announcementBox { margin-bottom: 0; }
+
+@media (max-width: 620px) {
+  .adminShell { width: min(100% - 20px, 560px); padding: 18px 0; }
+  .adminCard { border-radius: 18px; padding: 15px; }
+  .loginCard { margin-top: 16px; }
+  .adminTopbar { align-items: center; }
+  .adminBrand h1, .adminTopbar h1 { font-size: 24px; }
+  .adminGhost { min-height: 40px; padding: 0 10px; font-size: 10px; }
+}
+.announcementBox p { white-space: pre-wrap; }

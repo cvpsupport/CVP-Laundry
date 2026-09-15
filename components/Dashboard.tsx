@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Machine } from "../lib/types";
+import type { Announcement, Machine } from "../lib/types";
 
 const REFRESH_MS = 5000;
 const STORAGE_KEY = "mew-laundry-notify-machines";
@@ -66,6 +66,7 @@ function urlBase64ToUint8Array(base64String: string) {
 
 export default function Dashboard() {
   const [machines, setMachines] = useState<Machine[]>([]);
+  const [announcement, setAnnouncement] = useState<Announcement | null>(null);
   const [mode, setMode] = useState<"demo" | "live" | "error">("demo");
   const [now, setNow] = useState(Date.now());
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -87,6 +88,14 @@ export default function Dashboard() {
       setMachines(data.machines);
       setMode(data.mode);
       setLastUpdated(new Date());
+
+      try {
+        const announcementResponse = await fetch("/api/announcement", { cache: "no-store" });
+        const announcementData = await announcementResponse.json();
+        if (announcementResponse.ok) setAnnouncement(announcementData.announcement ?? null);
+      } catch {
+        // Machine status is more important than the announcement; keep the last announcement on transient errors.
+      }
     } catch {
       setMode("error");
     } finally {
@@ -367,13 +376,15 @@ export default function Dashboard() {
           <span className="rulesBadge">โปรดอ่านก่อนใช้งาน</span>
         </div>
 
-        <div className="announcementBox">
-          <span className="announcementIcon" aria-hidden="true">📢</span>
-          <div>
-            <strong>ประกาศจากร้าน</strong>
-            <p>กรุณานำผ้าออกจากเครื่องเมื่อซักหรืออบเสร็จ เพื่อให้ผู้ใช้งานท่านถัดไปสามารถใช้บริการได้ต่อเนื่อง และสามารถติดตามเวลาที่เหลือผ่านหน้า CVP Laundry ได้ตลอดเวลา</p>
+        {announcement?.is_active && (
+          <div className={`announcementBox ${announcement.tone}`}>
+            <span className="announcementIcon" aria-hidden="true">{announcement.tone === "maintenance" ? "🛠️" : announcement.tone === "warning" ? "⚠️" : "📢"}</span>
+            <div>
+              <strong>{announcement.title}</strong>
+              <p>{announcement.body}</p>
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="rulesGrid">
           <div className="ruleCard">
