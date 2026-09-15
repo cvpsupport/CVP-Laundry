@@ -1,10 +1,104 @@
-# CVP Laundry v1.7 update
+# CVP Laundry v1.8
 
-แก้ปัญหาสถานะ `finished` ค้างและไม่กลับเป็น `available` เมื่อไม่มี ESP32 ส่ง event `available`.
+Web dashboard for 3 washers + 1 dryer, Supabase live status, Vercel API, PWA/Web Push, Admin announcements/rules/maintenance, and ESP32 integration.
 
-- หลังสถานะ `finished` ครบ 10 นาที ระบบจะเปลี่ยนเป็น `available` อัตโนมัติเมื่อหน้าเว็บ/API `/api/machines` มีการ refresh.
-- หน้า Dashboard refresh ทุก 5 วินาทีอยู่แล้ว จึงไม่ต้องตั้ง Cron เพิ่ม.
-- ถ้า ESP32 ส่ง `available` มาก่อน 10 นาที ระบบยังทำงานตาม event นั้นตามปกติ.
-- เครื่องที่ Admin ตั้ง `is_maintenance=true` จะไม่ถูก auto-release.
+## v1.8 notification behavior
 
-อัปเดตไฟล์ในโปรเจกต์เดิม แล้วรัน `npm run build`, commit และ push ขึ้น GitHub/Vercel.
+Customers who tap **แจ้งเตือนเครื่องนี้** receive two push notifications per cycle:
+
+- **ครั้งที่ 1: 15 นาทีก่อนเสร็จ** — “ใกล้เสร็จแล้ว”
+- **ครั้งที่ 2: 5 นาทีก่อนเสร็จ** — “อีก 5 นาทีจะเสร็จ”
+
+At 0 minutes the dashboard changes to **ซักเสร็จแล้ว / อบเสร็จแล้ว**. v1.8 does not send a third push at T0, so customers receive exactly two push notifications.
+
+## Required Supabase migration
+
+Run this file once in Supabase SQL Editor:
+
+`supabase/add_two_stage_notifications.sql`
+
+It adds:
+
+- `warning_15_notified_at`
+- `warning_5_notified_at`
+
+These columns prevent duplicate notifications for the same cycle.
+
+## Manual production test
+
+Start machine 1:
+
+```powershell
+$body = @{
+    machineNo = 1
+    event = "start"
+    durationMinutes = 40
+    program = "normal"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "https://cvp-laundry.vercel.app/api/device/update" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body
+```
+
+First notification (simulate 15 minutes remaining):
+
+```powershell
+$body = @{
+    machineNo = 1
+    event = "near_finish"
+    minutesRemaining = 15
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "https://cvp-laundry.vercel.app/api/device/update" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body
+```
+
+Second notification (simulate 5 minutes remaining):
+
+```powershell
+$body = @{
+    machineNo = 1
+    event = "near_finish"
+    minutesRemaining = 5
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "https://cvp-laundry.vercel.app/api/device/update" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body
+```
+
+Actual finish / status only:
+
+```powershell
+$body = @{
+    machineNo = 1
+    event = "finish"
+} | ConvertTo-Json
+
+Invoke-RestMethod `
+    -Uri "https://cvp-laundry.vercel.app/api/device/update" `
+    -Method Post `
+    -Headers $headers `
+    -Body $body
+```
+
+## Deploy
+
+After copying the v1.8 update into the existing project:
+
+```powershell
+npm run build
+git add .
+git commit -m "Add 15 and 5 minute push notifications"
+git push
+```
+
+Vercel will deploy from GitHub automatically.

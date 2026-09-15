@@ -29,6 +29,8 @@ async function autoReleaseFinishedMachines(machines: Machine[]) {
         program: null,
         started_at: null,
         end_at: null,
+        warning_15_notified_at: null,
+        warning_5_notified_at: null,
         near_finish_notified_at: null,
         finish_notified_at: null,
       })

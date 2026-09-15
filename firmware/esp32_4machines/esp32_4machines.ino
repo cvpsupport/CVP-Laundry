@@ -4,6 +4,7 @@
 
 // =========================
 // CVP Laundry - 4 machines
+// v1.8: two push alerts at T-15 and T-5
 // =========================
 // Each input must be an ISOLATED low-voltage/dry-contact RUN signal.
 // Never connect ESP32 GPIO directly to mains voltage.
@@ -11,19 +12,17 @@
 const char* WIFI_SSID = "YOUR_WIFI_NAME";
 const char* WIFI_PASSWORD = "YOUR_WIFI_PASSWORD";
 
-// Replace with your deployed Vercel URL.
-const char* API_URL = "https://your-project.vercel.app/api/device/update";
+const char* API_URL = "https://cvp-laundry.vercel.app/api/device/update";
 const char* DEVICE_API_KEY = "CHANGE_TO_THE_SAME_DEVICE_API_KEY_AS_VERCEL";
 
-// Dry contact / optocoupler output -> GPIO, with GND shared only on the safe low-voltage side.
 const uint8_t SENSOR_PINS[4] = {25, 26, 27, 32};
 const bool ACTIVE_LOW = true;
 
-// Adjust each machine's expected cycle duration to match the real washer program.
+// Set the real expected cycle time of each machine.
 const uint16_t CYCLE_MINUTES[4] = {40, 40, 40, 40};
-const uint8_t NEAR_FINISH_MINUTES = 5;
+const uint8_t FIRST_ALERT_MINUTES = 15;
+const uint8_t SECOND_ALERT_MINUTES = 5;
 
-// Filtering prevents short motor pauses from being treated as finish events.
 const unsigned long START_CONFIRM_MS = 15UL * 1000UL;
 const unsigned long FINISH_CONFIRM_MS = 120UL * 1000UL;
 const unsigned long FINISHED_HOLD_MS = 10UL * 60UL * 1000UL;
@@ -33,7 +32,8 @@ struct MachineRuntime {
   bool running = false;
   bool finished = false;
   bool startSent = false;
-  bool nearSent = false;
+  bool alert15Sent = false;
+  bool alert5Sent = false;
   bool finishSent = false;
   bool availableSent = true;
   unsigned long activeSince = 0;
@@ -65,7 +65,6 @@ bool postEvent(uint8_t machineNo, const String& event, uint16_t durationMinutes 
   if (WiFi.status() != WL_CONNECTED) return false;
 
   WiFiClientSecure client;
-  // MVP setting. For production, install/verify the server CA certificate instead of setInsecure().
   client.setInsecure();
 
   HTTPClient http;
@@ -88,7 +87,7 @@ bool postEvent(uint8_t machineNo, const String& event, uint16_t durationMinutes 
   String response = http.getString();
   http.end();
 
-  Serial.printf("Machine %u event %s -> HTTP %d %s\n", machineNo, event.c_str(), code, response.c_str());
+  Serial.printf("Machine %u event %s (%u min) -> HTTP %d %s\n", machineNo, event.c_str(), minutesRemaining, code, response.c_str());
   return code >= 200 && code < 300;
 }
 
@@ -103,7 +102,8 @@ void startCycle(uint8_t i, unsigned long now) {
   m.running = true;
   m.finished = false;
   m.startSent = false;
-  m.nearSent = false;
+  m.alert15Sent = false;
+  m.alert5Sent = false;
   m.finishSent = false;
   m.availableSent = false;
   m.cycleStartedAt = now;
@@ -143,12 +143,21 @@ void updateMachine(uint8_t i, unsigned long now) {
       m.startSent = postEvent(i + 1, "start", CYCLE_MINUTES[i]);
     }
 
+    const unsigned long elapsed = now - m.cycleStartedAt;
     const unsigned long cycleMs = (unsigned long)CYCLE_MINUTES[i] * 60UL * 1000UL;
-    const unsigned long nearMs = (unsigned long)NEAR_FINISH_MINUTES * 60UL * 1000UL;
-    const unsigned long nearAt = cycleMs > nearMs ? cycleMs - nearMs : 0;
 
-    if (!m.nearSent && now - m.cycleStartedAt >= nearAt && canRetry(m, now)) {
-      m.nearSent = postEvent(i + 1, "near_finish", 0, NEAR_FINISH_MINUTES);
+    if (!m.alert15Sent && CYCLE_MINUTES[i] > FIRST_ALERT_MINUTES) {
+      const unsigned long alert15At = cycleMs - (unsigned long)FIRST_ALERT_MINUTES * 60UL * 1000UL;
+      if (elapsed >= alert15At && canRetry(m, now)) {
+        m.alert15Sent = postEvent(i + 1, "near_finish", 0, FIRST_ALERT_MINUTES);
+      }
+    }
+
+    if (!m.alert5Sent && CYCLE_MINUTES[i] > SECOND_ALERT_MINUTES) {
+      const unsigned long alert5At = cycleMs - (unsigned long)SECOND_ALERT_MINUTES * 60UL * 1000UL;
+      if (elapsed >= alert5At && canRetry(m, now)) {
+        m.alert5Sent = postEvent(i + 1, "near_finish", 0, SECOND_ALERT_MINUTES);
+      }
     }
 
     if (!active) {
@@ -161,11 +170,11 @@ void updateMachine(uint8_t i, unsigned long now) {
   }
 
   if (m.finished) {
+    // At T0, update the dashboard to "finished". No third push is sent.
     if (!m.finishSent && canRetry(m, now)) {
       m.finishSent = postEvent(i + 1, "finish");
     }
 
-    // A new RUN signal starts a new cycle immediately after confirmation.
     if (active) {
       if (m.activeSince == 0) m.activeSince = now;
       if (now - m.activeSince >= START_CONFIRM_MS) startCycle(i, now);
@@ -192,7 +201,7 @@ void setup() {
   }
 
   ensureWiFi();
-  Serial.println("CVP Laundry controller started");
+  Serial.println("CVP Laundry controller v1.8 started");
 }
 
 void loop() {

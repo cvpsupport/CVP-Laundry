@@ -37,10 +37,6 @@ function machineKind(machine: Machine) {
   return machine.machine_type === "dryer" ? "เครื่องอบผ้า" : "เครื่องซักผ้า";
 }
 
-function actionVerb(machine: Machine) {
-  return machine.machine_type === "dryer" ? "อบ" : "ซัก";
-}
-
 function statusInfo(machine: Machine, now: number) {
   if (machine.is_maintenance) return { label: "ปิดปรับปรุง", tone: "maintenance", icon: "🛠", detail: machine.maintenance_note || "ปิดปรับปรุงชั่วคราว" };
   const remaining = minutesRemaining(machine.end_at, now);
@@ -52,7 +48,7 @@ function statusInfo(machine: Machine, now: number) {
     detail: machine.machine_type === "dryer" ? "นำผ้าออกจากเครื่องอบได้เลย" : "กรุณานำผ้าออกจากเครื่อง",
   };
   if (machine.status === "available") return { label: "ว่าง", tone: "available", icon: "✓", detail: "พร้อมใช้งาน" };
-  if (remaining !== null && remaining <= 5) return { label: "ใกล้เสร็จ", tone: "soon", icon: "⌛", detail: `เหลือประมาณ ${remaining} นาที` };
+  if (remaining !== null && remaining <= 15) return { label: "ใกล้เสร็จ", tone: "soon", icon: "⌛", detail: `เหลือประมาณ ${remaining} นาที` };
   return {
     label: machine.machine_type === "dryer" ? "กำลังอบ" : "กำลังซัก",
     tone: "running",
@@ -88,7 +84,7 @@ export default function Dashboard() {
   const [pushSupported, setPushSupported] = useState<boolean | null>(null);
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">("default");
   const [pushBusy, setPushBusy] = useState<number | "all" | null>(null);
-  const [pushMessage, setPushMessage] = useState("กดกระดิ่งที่เครื่องของคุณ เพื่อรับแจ้งเตือนก่อนเสร็จ 5 นาทีและเมื่อทำงานเสร็จ");
+  const [pushMessage, setPushMessage] = useState("กดกระดิ่งที่เครื่องของคุณ เพื่อรับแจ้งเตือน 2 ครั้ง: ก่อนเสร็จ 15 นาที และก่อนเสร็จ 5 นาที");
   const [isIosNeedsInstall, setIsIosNeedsInstall] = useState(false);
   const [toast, setToast] = useState<Toast>(null);
   const alertedRef = useRef<Set<string>>(new Set());
@@ -172,16 +168,16 @@ export default function Dashboard() {
       let nextToast: Toast = null;
 
       if (machine.status === "running" && remaining !== null && remaining <= 5) {
-        key = `near:${machineNo}:${machine.end_at}`;
+        key = `warning5:${machineNo}:${machine.end_at}`;
+        nextToast = {
+          title: `${machineKind(machine)} ${String(machineNo).padStart(2, "0")} อีก 5 นาทีจะเสร็จ`,
+          body: "กรุณาเตรียมกลับมารับผ้าที่เครื่อง",
+        };
+      } else if (machine.status === "running" && remaining !== null && remaining <= 15) {
+        key = `warning15:${machineNo}:${machine.end_at}`;
         nextToast = {
           title: `${machineKind(machine)} ${String(machineNo).padStart(2, "0")} ใกล้เสร็จแล้ว`,
-          body: `เหลือประมาณ ${remaining} นาที เตรียมกลับมารับผ้าได้เลย`,
-        };
-      } else if (machine.status === "finished") {
-        key = `finished:${machineNo}:${machine.end_at}`;
-        nextToast = {
-          title: `${machineKind(machine)} ${String(machineNo).padStart(2, "0")} ${actionVerb(machine)}เสร็จแล้ว`,
-          body: machine.machine_type === "dryer" ? "นำผ้าออกจากเครื่องอบได้เลย" : "กรุณานำผ้าออกจากเครื่อง",
+          body: "เหลือประมาณ 15 นาที เตรียมกลับมารับผ้าได้เลย",
         };
       }
 

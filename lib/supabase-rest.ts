@@ -60,6 +60,8 @@ export async function setMachineMaintenance(machineNo: number, isMaintenance: bo
     program: null,
     started_at: null,
     end_at: null,
+    warning_15_notified_at: null,
+    warning_5_notified_at: null,
     near_finish_notified_at: null,
     finish_notified_at: null,
   };
@@ -68,9 +70,9 @@ export async function setMachineMaintenance(machineNo: number, isMaintenance: bo
   return rows[0];
 }
 
-export async function markNotificationOnce(machineNo: number, kind: "near_finish" | "finished") {
+export async function markNotificationOnce(machineNo: number, kind: "warning_15" | "warning_5") {
   if (!url) throw new Error("SUPABASE_URL is not configured");
-  const column = kind === "near_finish" ? "near_finish_notified_at" : "finish_notified_at";
+  const column = kind === "warning_15" ? "warning_15_notified_at" : "warning_5_notified_at";
   const response = await fetch(
     `${url}/rest/v1/machines?machine_no=eq.${machineNo}&${column}=is.null`,
     {

@@ -8,6 +8,8 @@ create table if not exists public.machines (
   program text,
   started_at timestamptz,
   end_at timestamptz,
+  warning_15_notified_at timestamptz,
+  warning_5_notified_at timestamptz,
   near_finish_notified_at timestamptz,
   finish_notified_at timestamptz,
   is_maintenance boolean not null default false,
@@ -18,6 +20,8 @@ create table if not exists public.machines (
 -- Safe migrations for an existing project.
 alter table public.machines add column if not exists machine_type text not null default 'washer';
 alter table public.machines add column if not exists price_baht integer;
+alter table public.machines add column if not exists warning_15_notified_at timestamptz;
+alter table public.machines add column if not exists warning_5_notified_at timestamptz;
 alter table public.machines add column if not exists near_finish_notified_at timestamptz;
 alter table public.machines add column if not exists finish_notified_at timestamptz;
 alter table public.machines add column if not exists is_maintenance boolean not null default false;

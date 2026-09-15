@@ -27,7 +27,6 @@ export async function POST(request: NextRequest) {
 
     const now = new Date();
     let patch: Record<string, unknown> = {};
-    let pushResult: unknown = null;
 
     if (event === "start") {
       const machine = await getMachine(machineNo);
@@ -40,6 +39,8 @@ export async function POST(request: NextRequest) {
         program: String(body.program ?? (machineNo === 4 ? "อบผ้า" : "ซักปกติ")).slice(0, 80),
         started_at: now.toISOString(),
         end_at: new Date(now.getTime() + durationMinutes * 60_000).toISOString(),
+        warning_15_notified_at: null,
+        warning_5_notified_at: null,
         near_finish_notified_at: null,
         finish_notified_at: null,
       };
@@ -48,20 +49,40 @@ export async function POST(request: NextRequest) {
       if (machine?.is_maintenance) {
         return NextResponse.json({ ok: true, event: "near_finish", ignored: true, reason: "maintenance", notified: false, push: null });
       }
-      const shouldSend = await markNotificationOnce(machineNo, "near_finish");
-      if (shouldSend) {
-        const minutes = Math.max(1, Math.min(15, Number(body.minutesRemaining ?? 5)));
-        pushResult = await sendMachinePush(machineNo, "near_finish", minutes);
-      }
-      return NextResponse.json({ ok: true, event: "near_finish", notified: shouldSend, push: pushResult });
+
+      const requestedMinutes = Number(body.minutesRemaining ?? 5);
+      const minutes = requestedMinutes > 5 ? 15 : 5;
+      const notificationKind = minutes === 15 ? "warning_15" : "warning_5";
+      const shouldSend = await markNotificationOnce(machineNo, notificationKind);
+      const pushResult = shouldSend ? await sendMachinePush(machineNo, notificationKind, minutes) : null;
+
+      return NextResponse.json({
+        ok: true,
+        event: "near_finish",
+        notification: minutes === 15 ? "15_minutes_before" : "5_minutes_before",
+        minutesRemaining: minutes,
+        notified: shouldSend,
+        push: pushResult,
+      });
     } else if (event === "finish") {
       const machine = await getMachine(machineNo);
       if (machine?.is_maintenance) {
         return NextResponse.json({ ok: true, event: "finish", ignored: true, reason: "maintenance", push: null });
       }
+      // The two customer pushes are already sent at T-15 and T-5.
+      // At T0 we only update the dashboard to the actual finished state.
       patch = { status: "finished", end_at: now.toISOString() };
     } else if (event === "available") {
-      patch = { status: "available", program: null, started_at: null, end_at: null };
+      patch = {
+        status: "available",
+        program: null,
+        started_at: null,
+        end_at: null,
+        warning_15_notified_at: null,
+        warning_5_notified_at: null,
+        near_finish_notified_at: null,
+        finish_notified_at: null,
+      };
     } else if (event === "offline") {
       patch = { status: "offline" };
     } else if (body.status && validStatuses.has(body.status)) {
@@ -82,13 +103,7 @@ export async function POST(request: NextRequest) {
     }
 
     const result = await updateMachine(machineNo, patch);
-
-    if (event === "finish") {
-      const shouldSend = await markNotificationOnce(machineNo, "finished");
-      if (shouldSend) pushResult = await sendMachinePush(machineNo, "finished");
-    }
-
-    return NextResponse.json({ ok: true, machine: result?.[0] ?? null, push: pushResult });
+    return NextResponse.json({ ok: true, machine: result?.[0] ?? null, push: null });
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "อัปเดตสถานะไม่สำเร็จ" }, { status: 500 });
