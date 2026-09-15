@@ -358,6 +358,59 @@ export default function Dashboard() {
         </section>
       )}
 
+      <section className="rulesSection" aria-labelledby="rules-title">
+        <div className="rulesHeading">
+          <div>
+            <div className="rulesEyebrow">ประกาศ &amp; ข้อควรปฏิบัติ</div>
+            <h2 id="rules-title">กฎระเบียบการใช้งาน CVP Laundry</h2>
+          </div>
+          <span className="rulesBadge">โปรดอ่านก่อนใช้งาน</span>
+        </div>
+
+        <div className="announcementBox">
+          <span className="announcementIcon" aria-hidden="true">📢</span>
+          <div>
+            <strong>ประกาศจากร้าน</strong>
+            <p>กรุณานำผ้าออกจากเครื่องเมื่อซักหรืออบเสร็จ เพื่อให้ผู้ใช้งานท่านถัดไปสามารถใช้บริการได้ต่อเนื่อง และสามารถติดตามเวลาที่เหลือผ่านหน้า CVP Laundry ได้ตลอดเวลา</p>
+          </div>
+        </div>
+
+        <div className="rulesGrid">
+          <div className="ruleCard">
+            <span className="ruleNo">1</span>
+            <p>ตรวจสอบกระเป๋าเสื้อและกางเกง นำเหรียญ กุญแจ กระดาษ และสิ่งของออกก่อนใส่เครื่อง</p>
+          </div>
+          <div className="ruleCard">
+            <span className="ruleNo">2</span>
+            <p>ห้ามซักหรืออบผ้าที่เปื้อนน้ำมัน เชื้อเพลิง สารไวไฟ หรือสารเคมีอันตราย</p>
+          </div>
+          <div className="ruleCard">
+            <span className="ruleNo">3</span>
+            <p>ห้ามใส่ของแข็ง ของมีโลหะหนัก รองเท้า หรือพรม หากไม่ได้รับอนุญาตจากผู้ดูแล</p>
+          </div>
+          <div className="ruleCard">
+            <span className="ruleNo">4</span>
+            <p>ใช้น้ำยาและผงซักฟอกในปริมาณเหมาะสม เพื่อป้องกันฟองล้นและความเสียหายต่อเครื่อง</p>
+          </div>
+          <div className="ruleCard">
+            <span className="ruleNo">5</span>
+            <p>ห้ามงัด ดึง หรือพยายามเปิดประตูระหว่างเครื่องกำลังทำงาน</p>
+          </div>
+          <div className="ruleCard">
+            <span className="ruleNo">6</span>
+            <p>เมื่อเครื่องทำงานเสร็จ กรุณานำผ้าออกโดยเร็วเพื่อแบ่งปันการใช้งานกับลูกค้าท่านอื่น</p>
+          </div>
+        </div>
+
+        <details className="dryerRule">
+          <summary>ข้อควรระวังสำหรับเครื่องอบผ้า 04</summary>
+          <div className="dryerRuleBody">
+            <p>ตรวจสอบฉลากการดูแลผ้าก่อนอบ และหลีกเลี่ยงวัสดุที่ละลายหรือเสียรูปจากความร้อน เช่น โฟม ยาง พลาสติก และผ้าที่ระบุว่าห้ามอบด้วยเครื่อง</p>
+            <p>หากพบเสียง กลิ่น ควัน หรือการทำงานผิดปกติ กรุณาหยุดใช้งานและแจ้งผู้ดูแลทันที</p>
+          </div>
+        </details>
+      </section>
+
       {mode === "demo" && (
         <div className="demoNotice">ขณะนี้เป็นโหมด DEMO — การแจ้งเตือน Push จริงจะพร้อมเมื่อใส่ค่า Supabase และ VAPID ใน Vercel</div>
       )}
