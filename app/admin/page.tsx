@@ -3,7 +3,7 @@ import AdminAnnouncement from "../../components/AdminAnnouncement";
 
 export const metadata: Metadata = {
   title: "Admin | CVP Laundry",
-  description: "จัดการประกาศหน้า CVP Laundry",
+  description: "จัดการประกาศ กฎระเบียบ และสถานะปิดปรับปรุงของ CVP Laundry",
 };
 
 export default function AdminPage() {

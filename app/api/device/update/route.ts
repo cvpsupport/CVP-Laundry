@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import type { MachineStatus } from "../../../../lib/types";
-import { isSupabaseConfigured, markNotificationOnce, updateMachine } from "../../../../lib/supabase-rest";
+import { getMachine, isSupabaseConfigured, markNotificationOnce, updateMachine } from "../../../../lib/supabase-rest";
 import { sendMachinePush } from "../../../../lib/push";
 
 const validStatuses = new Set<MachineStatus>(["available", "running", "finished", "offline"]);
@@ -30,6 +30,10 @@ export async function POST(request: NextRequest) {
     let pushResult: unknown = null;
 
     if (event === "start") {
+      const machine = await getMachine(machineNo);
+      if (machine?.is_maintenance) {
+        return NextResponse.json({ error: "เครื่องนี้ถูกตั้งเป็นปิดปรับปรุงจาก Admin" }, { status: 409 });
+      }
       const durationMinutes = Math.max(1, Math.min(180, Number(body.durationMinutes ?? 40)));
       patch = {
         status: "running",
@@ -40,6 +44,10 @@ export async function POST(request: NextRequest) {
         finish_notified_at: null,
       };
     } else if (event === "near_finish") {
+      const machine = await getMachine(machineNo);
+      if (machine?.is_maintenance) {
+        return NextResponse.json({ ok: true, event: "near_finish", ignored: true, reason: "maintenance", notified: false, push: null });
+      }
       const shouldSend = await markNotificationOnce(machineNo, "near_finish");
       if (shouldSend) {
         const minutes = Math.max(1, Math.min(15, Number(body.minutesRemaining ?? 5)));
@@ -47,12 +55,22 @@ export async function POST(request: NextRequest) {
       }
       return NextResponse.json({ ok: true, event: "near_finish", notified: shouldSend, push: pushResult });
     } else if (event === "finish") {
+      const machine = await getMachine(machineNo);
+      if (machine?.is_maintenance) {
+        return NextResponse.json({ ok: true, event: "finish", ignored: true, reason: "maintenance", push: null });
+      }
       patch = { status: "finished", end_at: now.toISOString() };
     } else if (event === "available") {
       patch = { status: "available", program: null, started_at: null, end_at: null };
     } else if (event === "offline") {
       patch = { status: "offline" };
     } else if (body.status && validStatuses.has(body.status)) {
+      if (body.status === "running") {
+        const machine = await getMachine(machineNo);
+        if (machine?.is_maintenance) {
+          return NextResponse.json({ error: "เครื่องนี้ถูกตั้งเป็นปิดปรับปรุงจาก Admin" }, { status: 409 });
+        }
+      }
       patch = {
         status: body.status,
         program: body.program ?? null,

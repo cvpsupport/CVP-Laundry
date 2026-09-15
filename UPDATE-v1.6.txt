@@ -1,0 +1,10 @@
+CVP Laundry v1.6 update from v1.5
+
+1) Copy all files/folders from this update package over your existing Laundry-webapp project.
+2) In Supabase SQL Editor, run: supabase/add_admin_rules_maintenance.sql
+3) Run locally: npm run build
+4) If build passes: git add . && git commit -m "Add admin rules and maintenance controls" && git push
+5) Wait for Vercel deployment, then open: https://cvp-laundry.vercel.app/admin
+
+No new Environment Variables are required beyond the v1.5 setup.
+Do NOT replace or commit your existing .env.local file.

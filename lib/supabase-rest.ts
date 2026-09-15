@@ -1,4 +1,4 @@
-import type { Announcement, Machine } from "./types";
+import type { Announcement, Machine, RuleCategory, SiteRule } from "./types";
 
 const url = process.env.SUPABASE_URL;
 const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -17,10 +17,12 @@ function headers(extra?: Record<string, string>) {
   };
 }
 
+const machineSelect = "machine_no,name,machine_type,price_baht,status,program,started_at,end_at,is_maintenance,maintenance_note,updated_at";
+
 export async function getMachines(): Promise<Machine[]> {
   if (!url) throw new Error("SUPABASE_URL is not configured");
   const response = await fetch(
-    `${url}/rest/v1/machines?select=machine_no,name,machine_type,price_baht,status,program,started_at,end_at,updated_at&order=machine_no.asc`,
+    `${url}/rest/v1/machines?select=${machineSelect}&order=machine_no.asc`,
     { headers: headers(), cache: "no-store" }
   );
   if (!response.ok) throw new Error(`Supabase read failed: ${response.status} ${await response.text()}`);
@@ -30,7 +32,7 @@ export async function getMachines(): Promise<Machine[]> {
 export async function getMachine(machineNo: number): Promise<Machine | null> {
   if (!url) throw new Error("SUPABASE_URL is not configured");
   const response = await fetch(
-    `${url}/rest/v1/machines?select=machine_no,name,machine_type,price_baht,status,program,started_at,end_at,updated_at&machine_no=eq.${machineNo}&limit=1`,
+    `${url}/rest/v1/machines?select=${machineSelect}&machine_no=eq.${machineNo}&limit=1`,
     { headers: headers(), cache: "no-store" }
   );
   if (!response.ok) throw new Error(`Supabase read failed: ${response.status} ${await response.text()}`);
@@ -48,6 +50,22 @@ export async function updateMachine(machineNo: number, patch: Record<string, unk
   });
   if (!response.ok) throw new Error(`Supabase update failed: ${response.status} ${await response.text()}`);
   return response.json();
+}
+
+export async function setMachineMaintenance(machineNo: number, isMaintenance: boolean, note: string | null): Promise<Machine> {
+  const patch: Record<string, unknown> = {
+    is_maintenance: isMaintenance,
+    maintenance_note: isMaintenance ? note : null,
+    status: "available",
+    program: null,
+    started_at: null,
+    end_at: null,
+    near_finish_notified_at: null,
+    finish_notified_at: null,
+  };
+  const rows = await updateMachine(machineNo, patch);
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Machine row not found");
+  return rows[0];
 }
 
 export async function markNotificationOnce(machineNo: number, kind: "near_finish" | "finished") {
@@ -119,7 +137,6 @@ export async function deletePushSubscription(endpoint: string) {
   if (!response.ok) throw new Error(`Push subscription delete failed: ${response.status} ${await response.text()}`);
 }
 
-
 export async function getAnnouncement(): Promise<Announcement | null> {
   if (!url) throw new Error("SUPABASE_URL is not configured");
   const response = await fetch(
@@ -143,4 +160,58 @@ export async function updateAnnouncement(patch: Pick<Announcement, "title" | "bo
   const rows = await response.json();
   if (!Array.isArray(rows) || rows.length === 0) throw new Error("Announcement row not found");
   return rows[0];
+}
+
+export async function getRules(): Promise<SiteRule[]> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(
+    `${url}/rest/v1/site_rules?select=id,category,body,is_active,sort_order,updated_at&order=category.asc,sort_order.asc,id.asc`,
+    { headers: headers(), cache: "no-store" }
+  );
+  if (!response.ok) throw new Error(`Rules read failed: ${response.status} ${await response.text()}`);
+  return response.json();
+}
+
+export async function createRule(input: { category: RuleCategory; body: string; is_active: boolean; sort_order?: number }): Promise<SiteRule> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(`${url}/rest/v1/site_rules`, {
+    method: "POST",
+    headers: headers({ Prefer: "return=representation" }),
+    body: JSON.stringify({
+      category: input.category,
+      body: input.body,
+      is_active: input.is_active,
+      sort_order: input.sort_order ?? 100,
+      updated_at: new Date().toISOString(),
+    }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Rule create failed: ${response.status} ${await response.text()}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Rule create returned no row");
+  return rows[0];
+}
+
+export async function updateRule(id: number, patch: Partial<Pick<SiteRule, "category" | "body" | "is_active" | "sort_order">>): Promise<SiteRule> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(`${url}/rest/v1/site_rules?id=eq.${id}`, {
+    method: "PATCH",
+    headers: headers({ Prefer: "return=representation" }),
+    body: JSON.stringify({ ...patch, updated_at: new Date().toISOString() }),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Rule update failed: ${response.status} ${await response.text()}`);
+  const rows = await response.json();
+  if (!Array.isArray(rows) || rows.length === 0) throw new Error("Rule row not found");
+  return rows[0];
+}
+
+export async function deleteRule(id: number): Promise<void> {
+  if (!url) throw new Error("SUPABASE_URL is not configured");
+  const response = await fetch(`${url}/rest/v1/site_rules?id=eq.${id}`, {
+    method: "DELETE",
+    headers: headers(),
+    cache: "no-store",
+  });
+  if (!response.ok) throw new Error(`Rule delete failed: ${response.status} ${await response.text()}`);
 }

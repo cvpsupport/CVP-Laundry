@@ -10,6 +10,8 @@ export type Machine = {
   program: string | null;
   started_at: string | null;
   end_at: string | null;
+  is_maintenance: boolean;
+  maintenance_note: string | null;
   updated_at: string;
 };
 
@@ -21,5 +23,16 @@ export type Announcement = {
   body: string;
   tone: AnnouncementTone;
   is_active: boolean;
+  updated_at: string;
+};
+
+export type RuleCategory = "general" | "dryer";
+
+export type SiteRule = {
+  id: number;
+  category: RuleCategory;
+  body: string;
+  is_active: boolean;
+  sort_order: number;
   updated_at: string;
 };

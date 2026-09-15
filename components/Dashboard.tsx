@@ -1,12 +1,23 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import type { Announcement, Machine } from "../lib/types";
+import type { Announcement, Machine, SiteRule } from "../lib/types";
 
 const REFRESH_MS = 5000;
 const STORAGE_KEY = "mew-laundry-notify-machines";
 
 type Toast = { title: string; body: string } | null;
+
+const FALLBACK_RULES: SiteRule[] = [
+  { id: 1, category: "general", body: "ตรวจสอบกระเป๋าเสื้อและกางเกง นำเหรียญ กุญแจ กระดาษ และสิ่งของออกก่อนใส่เครื่อง", is_active: true, sort_order: 10, updated_at: new Date(0).toISOString() },
+  { id: 2, category: "general", body: "ห้ามซักหรืออบผ้าที่เปื้อนน้ำมัน เชื้อเพลิง สารไวไฟ หรือสารเคมีอันตราย", is_active: true, sort_order: 20, updated_at: new Date(0).toISOString() },
+  { id: 3, category: "general", body: "ห้ามใส่ของแข็ง ของมีโลหะหนัก รองเท้า หรือพรม หากไม่ได้รับอนุญาตจากผู้ดูแล", is_active: true, sort_order: 30, updated_at: new Date(0).toISOString() },
+  { id: 4, category: "general", body: "ใช้น้ำยาและผงซักฟอกในปริมาณเหมาะสม เพื่อป้องกันฟองล้นและความเสียหายต่อเครื่อง", is_active: true, sort_order: 40, updated_at: new Date(0).toISOString() },
+  { id: 5, category: "general", body: "ห้ามงัด ดึง หรือพยายามเปิดประตูระหว่างเครื่องกำลังทำงาน", is_active: true, sort_order: 50, updated_at: new Date(0).toISOString() },
+  { id: 6, category: "general", body: "เมื่อเครื่องทำงานเสร็จ กรุณานำผ้าออกโดยเร็วเพื่อแบ่งปันการใช้งานกับลูกค้าท่านอื่น", is_active: true, sort_order: 60, updated_at: new Date(0).toISOString() },
+  { id: 7, category: "dryer", body: "ตรวจสอบฉลากการดูแลผ้าก่อนอบ และหลีกเลี่ยงวัสดุที่ละลายหรือเสียรูปจากความร้อน เช่น โฟม ยาง พลาสติก และผ้าที่ระบุว่าห้ามอบด้วยเครื่อง", is_active: true, sort_order: 10, updated_at: new Date(0).toISOString() },
+  { id: 8, category: "dryer", body: "หากพบเสียง กลิ่น ควัน หรือการทำงานผิดปกติ กรุณาหยุดใช้งานและแจ้งผู้ดูแลทันที", is_active: true, sort_order: 20, updated_at: new Date(0).toISOString() },
+];
 
 function minutesRemaining(endAt: string | null, now: number) {
   if (!endAt) return null;
@@ -31,6 +42,7 @@ function actionVerb(machine: Machine) {
 }
 
 function statusInfo(machine: Machine, now: number) {
+  if (machine.is_maintenance) return { label: "ปิดปรับปรุง", tone: "maintenance", icon: "🛠", detail: machine.maintenance_note || "ปิดปรับปรุงชั่วคราว" };
   const remaining = minutesRemaining(machine.end_at, now);
   if (machine.status === "offline") return { label: "ออฟไลน์", tone: "offline", icon: "!", detail: "กำลังตรวจสอบการเชื่อมต่อ" };
   if (machine.status === "finished") return {
@@ -67,6 +79,7 @@ function urlBase64ToUint8Array(base64String: string) {
 export default function Dashboard() {
   const [machines, setMachines] = useState<Machine[]>([]);
   const [announcement, setAnnouncement] = useState<Announcement | null>(null);
+  const [rules, setRules] = useState<SiteRule[]>(FALLBACK_RULES);
   const [mode, setMode] = useState<"demo" | "live" | "error">("demo");
   const [now, setNow] = useState(Date.now());
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
@@ -95,6 +108,14 @@ export default function Dashboard() {
         if (announcementResponse.ok) setAnnouncement(announcementData.announcement ?? null);
       } catch {
         // Machine status is more important than the announcement; keep the last announcement on transient errors.
+      }
+
+      try {
+        const rulesResponse = await fetch("/api/rules", { cache: "no-store" });
+        const rulesData = await rulesResponse.json();
+        if (rulesResponse.ok && Array.isArray(rulesData.rules)) setRules(rulesData.rules);
+      } catch {
+        // Keep local fallback rules if the rules table is temporarily unavailable.
       }
     } catch {
       setMode("error");
@@ -175,12 +196,17 @@ export default function Dashboard() {
   const counts = useMemo(() => {
     let available = 0;
     let busy = 0;
+    let maintenance = 0;
     machines.forEach((m) => {
-      if (m.status === "available") available += 1;
-      if (m.status === "running") busy += 1;
+      if (m.is_maintenance) maintenance += 1;
+      else if (m.status === "available") available += 1;
+      else if (m.status === "running") busy += 1;
     });
-    return { available, busy };
+    return { available, busy, maintenance };
   }, [machines]);
+
+  const generalRules = useMemo(() => rules.filter((rule) => rule.is_active && rule.category === "general").sort((a, b) => a.sort_order - b.sort_order || a.id - b.id), [rules]);
+  const dryerRules = useMemo(() => rules.filter((rule) => rule.is_active && rule.category === "dryer").sort((a, b) => a.sort_order - b.sort_order || a.id - b.id), [rules]);
 
   const syncPushSelection = useCallback(async (nextMachines: number[]) => {
     if (isIosNeedsInstall) {
@@ -285,6 +311,12 @@ export default function Dashboard() {
         <div className="summaryItem"><span className="summaryNumber">{counts.available}</span><span>เครื่องว่าง</span></div>
         <div className="divider" />
         <div className="summaryItem"><span className="summaryNumber">{counts.busy}</span><span>กำลังทำงาน</span></div>
+        {counts.maintenance > 0 && (
+          <>
+            <div className="divider" />
+            <div className="summaryItem"><span className="summaryNumber">{counts.maintenance}</span><span>ปิดปรับปรุง</span></div>
+          </>
+        )}
         <div className="lastUpdate">อัปเดต {lastUpdated ? timeText(lastUpdated.toISOString()) : "—"}</div>
       </section>
 
@@ -315,7 +347,7 @@ export default function Dashboard() {
             const remaining = minutesRemaining(machine.end_at, now);
             const pct = progress(machine, now);
             const selected = selectedMachines.includes(machine.machine_no);
-            const canTrack = machine.status === "running" || selected;
+            const canTrack = (!machine.is_maintenance && machine.status === "running") || selected;
 
             return (
               <article className={`machineCard ${info.tone}`} key={machine.machine_no} id={`machine-${machine.machine_no}`}>
@@ -328,7 +360,7 @@ export default function Dashboard() {
                   <div className={`statusPill ${info.tone}`}><span>{info.icon}</span>{info.label}</div>
                 </div>
 
-                {machine.status === "running" ? (
+                {machine.status === "running" && !machine.is_maintenance ? (
                   <>
                     <div className="countdownRow">
                       <div>
@@ -359,7 +391,7 @@ export default function Dashboard() {
                   aria-pressed={selected}
                 >
                   <span>{selected ? "🔔" : "🔕"}</span>
-                  {pushBusy === machine.machine_no ? "กำลังตั้งค่า..." : selected ? "กำลังแจ้งเตือนเครื่องนี้" : canTrack ? (isIosNeedsInstall ? "เปิดวิธีตั้งค่าแจ้งเตือนบน iPhone" : "แจ้งเตือนเครื่องนี้") : "เริ่มใช้งานแล้วจึงเปิดแจ้งเตือน"}
+                  {pushBusy === machine.machine_no ? "กำลังตั้งค่า..." : selected ? "กำลังแจ้งเตือนเครื่องนี้" : machine.is_maintenance ? "เครื่องปิดปรับปรุง" : canTrack ? (isIosNeedsInstall ? "เปิดวิธีตั้งค่าแจ้งเตือนบน iPhone" : "แจ้งเตือนเครื่องนี้") : "เริ่มใช้งานแล้วจึงเปิดแจ้งเตือน"}
                 </button>
               </article>
             );
@@ -387,39 +419,23 @@ export default function Dashboard() {
         )}
 
         <div className="rulesGrid">
-          <div className="ruleCard">
-            <span className="ruleNo">1</span>
-            <p>ตรวจสอบกระเป๋าเสื้อและกางเกง นำเหรียญ กุญแจ กระดาษ และสิ่งของออกก่อนใส่เครื่อง</p>
-          </div>
-          <div className="ruleCard">
-            <span className="ruleNo">2</span>
-            <p>ห้ามซักหรืออบผ้าที่เปื้อนน้ำมัน เชื้อเพลิง สารไวไฟ หรือสารเคมีอันตราย</p>
-          </div>
-          <div className="ruleCard">
-            <span className="ruleNo">3</span>
-            <p>ห้ามใส่ของแข็ง ของมีโลหะหนัก รองเท้า หรือพรม หากไม่ได้รับอนุญาตจากผู้ดูแล</p>
-          </div>
-          <div className="ruleCard">
-            <span className="ruleNo">4</span>
-            <p>ใช้น้ำยาและผงซักฟอกในปริมาณเหมาะสม เพื่อป้องกันฟองล้นและความเสียหายต่อเครื่อง</p>
-          </div>
-          <div className="ruleCard">
-            <span className="ruleNo">5</span>
-            <p>ห้ามงัด ดึง หรือพยายามเปิดประตูระหว่างเครื่องกำลังทำงาน</p>
-          </div>
-          <div className="ruleCard">
-            <span className="ruleNo">6</span>
-            <p>เมื่อเครื่องทำงานเสร็จ กรุณานำผ้าออกโดยเร็วเพื่อแบ่งปันการใช้งานกับลูกค้าท่านอื่น</p>
-          </div>
+          {generalRules.map((rule, index) => (
+            <div className="ruleCard" key={rule.id}>
+              <span className="ruleNo">{index + 1}</span>
+              <p>{rule.body}</p>
+            </div>
+          ))}
+          {generalRules.length === 0 && <div className="rulesEmpty">ขณะนี้ยังไม่มีกฎระเบียบที่เปิดแสดง</div>}
         </div>
 
-        <details className="dryerRule">
-          <summary>ข้อควรระวังสำหรับเครื่องอบผ้า 04</summary>
-          <div className="dryerRuleBody">
-            <p>ตรวจสอบฉลากการดูแลผ้าก่อนอบ และหลีกเลี่ยงวัสดุที่ละลายหรือเสียรูปจากความร้อน เช่น โฟม ยาง พลาสติก และผ้าที่ระบุว่าห้ามอบด้วยเครื่อง</p>
-            <p>หากพบเสียง กลิ่น ควัน หรือการทำงานผิดปกติ กรุณาหยุดใช้งานและแจ้งผู้ดูแลทันที</p>
-          </div>
-        </details>
+        {dryerRules.length > 0 && (
+          <details className="dryerRule">
+            <summary>ข้อควรระวังสำหรับเครื่องอบผ้า 04</summary>
+            <div className="dryerRuleBody">
+              {dryerRules.map((rule) => <p key={rule.id}>{rule.body}</p>)}
+            </div>
+          </details>
+        )}
       </section>
 
       {mode === "demo" && (
