@@ -1,4 +1,4 @@
-# CVP Laundry v1.11
+# CVP Laundry v1.12
 
 Web dashboard for 3 washers + 1 dryer, Supabase live status, Vercel API, PWA/Web Push, Admin announcements/rules/maintenance, and ESP32 integration.
 
@@ -116,3 +116,9 @@ No new environment variables are required.
 - ขยายข้อความ “อัปเดต” ให้มองเห็นชัดขึ้น โดยเฉพาะบนมือถือ
 - แสดงเวลาอัปเดตแบบ ชั่วโมง:นาที:วินาที เช่น `อัปเดต 07:51:23`
 - เวลา “เสร็จประมาณ” ยังคงแสดง ชั่วโมง:นาที เพื่อให้อ่านง่าย
+
+## v1.12 — นาฬิกาเดินทุกวินาที
+
+- เวลา `อัปเดต HH:MM:SS` บนหน้า Home เดินต่อเนื่องทุก 1 วินาที
+- ไม่ต้องรอรอบ refresh ข้อมูล 5 วินาทีเพื่อให้เลขวินาทีเปลี่ยน
+- ไม่ต้องแก้ Supabase หรือ Environment Variables เพิ่ม

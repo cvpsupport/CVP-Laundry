@@ -106,7 +106,6 @@ export default function Dashboard() {
   const [rules, setRules] = useState<SiteRule[]>(FALLBACK_RULES);
   const [mode, setMode] = useState<"demo" | "live" | "error">("demo");
   const [now, setNow] = useState(Date.now());
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [loading, setLoading] = useState(true);
   const [selectedMachines, setSelectedMachines] = useState<number[]>([]);
   const [pushSupported, setPushSupported] = useState<boolean | null>(null);
@@ -124,7 +123,6 @@ export default function Dashboard() {
       if (!response.ok) throw new Error(data.error || "Load failed");
       setMachines(data.machines);
       setMode(data.mode);
-      setLastUpdated(new Date());
 
       try {
         const announcementResponse = await fetch("/api/announcement", { cache: "no-store" });
@@ -504,7 +502,7 @@ export default function Dashboard() {
             <div className="summaryItem"><span className="summaryNumber">{counts.maintenance}</span><span>ปิดปรับปรุง</span></div>
           </>
         )}
-        <div className="lastUpdate">อัปเดต {updateTimeText(lastUpdated)}</div>
+        <div className="lastUpdate">อัปเดต {updateTimeText(new Date(now))}</div>
       </section>
 
       <section className="notificationPanel" aria-live="polite">
