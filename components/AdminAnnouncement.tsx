@@ -323,7 +323,7 @@ export default function AdminAnnouncement() {
       <main className="adminShell">
         <section className="adminCard loginCard">
           <a className="adminBackLink" href="/">← กลับหน้าสถานะเครื่อง</a>
-          <div className="adminBrand"><div className="logoMark">C</div><div><div className="eyebrow">CVP LAUNDRY</div><h1>Admin</h1></div></div>
+          <div className="adminBrand"><div className="logoMark"><img className="logoMarkIcon" src="/washer-mark.svg" alt="" aria-hidden="true" /></div><div><div className="eyebrow">CVP LAUNDRY</div><h1>Admin</h1></div></div>
           <p className="adminIntro">เข้าสู่ระบบเพื่อจัดการประกาศ กฎระเบียบ และสถานะปิดปรับปรุงของเครื่อง</p>
           <form onSubmit={login} className="adminForm">
             <label>

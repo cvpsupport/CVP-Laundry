@@ -4,7 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Announcement, Machine, SiteRule } from "../lib/types";
 
 const REFRESH_MS = 5000;
-const STORAGE_KEY = "mew-laundry-notify-machines";
+const STORAGE_KEY = "cvp-laundry-notify-machines-v2";
+const LEGACY_STORAGE_KEYS = ["mew-laundry-notify-machines", "cvp-laundry-notify-machines"];
 
 type Toast = { title: string; body: string } | null;
 
@@ -31,6 +32,16 @@ function timeText(iso: string | null) {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(iso));
+}
+
+function updateTimeText(date: Date | null) {
+  if (!date) return "—";
+  return new Intl.DateTimeFormat("th-TH", {
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(date);
 }
 
 function machineKind(machine: Machine) {
@@ -70,6 +81,23 @@ function urlBase64ToUint8Array(base64String: string) {
   const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
   const rawData = window.atob(base64);
   return Uint8Array.from([...rawData].map((char) => char.charCodeAt(0)));
+}
+
+function normalizeMachineNos(value: unknown): number[] {
+  if (!Array.isArray(value)) return [];
+  return Array.from(new Set(
+    value
+      .map(Number)
+      .filter((n) => Number.isInteger(n) && n >= 1 && n <= 4)
+  )).sort((a, b) => a - b);
+}
+
+function subscriptionMatchesPublicKey(subscription: PushSubscription, publicKey: string) {
+  const current = subscription.options.applicationServerKey;
+  if (!current) return false;
+  const actual = new Uint8Array(current);
+  const expected = urlBase64ToUint8Array(publicKey);
+  return actual.length === expected.length && actual.every((value, index) => value === expected[index]);
 }
 
 export default function Dashboard() {
@@ -124,32 +152,148 @@ export default function Dashboard() {
     load();
     const refresh = window.setInterval(load, REFRESH_MS);
     const clock = window.setInterval(() => setNow(Date.now()), 1000);
+
+    // Mobile browsers pause timers while the app is in the background.
+    // Refresh immediately when Safari/PWA becomes visible again.
+    const refreshOnResume = () => {
+      if (document.visibilityState === "visible") {
+        setNow(Date.now());
+        void load();
+      }
+    };
+    document.addEventListener("visibilitychange", refreshOnResume);
+    window.addEventListener("pageshow", refreshOnResume);
+
     return () => {
       window.clearInterval(refresh);
       window.clearInterval(clock);
+      document.removeEventListener("visibilitychange", refreshOnResume);
+      window.removeEventListener("pageshow", refreshOnResume);
     };
   }, [load]);
 
   useEffect(() => {
-    const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
-    setPushSupported(supported);
-    setPermission(supported ? Notification.permission : "unsupported");
+    let cancelled = false;
 
-    try {
-      const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-      if (Array.isArray(saved)) setSelectedMachines(saved.filter((n) => [1, 2, 3, 4].includes(Number(n))).map(Number));
-    } catch {
+    const clearStoredSelection = () => {
       localStorage.removeItem(STORAGE_KEY);
-    }
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      if (!cancelled) setSelectedMachines([]);
+    };
 
-    const ua = navigator.userAgent.toLowerCase();
-    const ios = /iphone|ipad|ipod/.test(ua);
-    const standalone = window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
-    setIsIosNeedsInstall(ios && !standalone);
+    const persistSelection = (machineNos: number[]) => {
+      const normalized = normalizeMachineNos(machineNos);
+      if (normalized.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
+      else localStorage.removeItem(STORAGE_KEY);
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      if (!cancelled) setSelectedMachines(normalized);
+    };
 
-    if ("serviceWorker" in navigator) {
-      navigator.serviceWorker.register("/sw.js").catch((error) => console.error("Service worker registration failed", error));
-    }
+    const readSavedSelection = () => {
+      for (const key of [STORAGE_KEY, ...LEGACY_STORAGE_KEYS]) {
+        try {
+          const raw = localStorage.getItem(key);
+          if (!raw) continue;
+          const parsed = normalizeMachineNos(JSON.parse(raw));
+          if (parsed.length > 0) return parsed;
+        } catch {
+          localStorage.removeItem(key);
+        }
+      }
+      return [] as number[];
+    };
+
+    const initPush = async () => {
+      const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+      if (!cancelled) {
+        setPushSupported(supported);
+        setPermission(supported ? Notification.permission : "unsupported");
+      }
+
+      const ua = navigator.userAgent.toLowerCase();
+      const ios = /iphone|ipad|ipod/.test(ua);
+      const standalone = window.matchMedia("(display-mode: standalone)").matches || Boolean((navigator as Navigator & { standalone?: boolean }).standalone);
+      if (!cancelled) setIsIosNeedsInstall(ios && !standalone);
+
+      const saved = readSavedSelection();
+      if (!supported) {
+        clearStoredSelection();
+        return;
+      }
+
+      try {
+        await navigator.serviceWorker.register("/sw.js");
+      } catch (error) {
+        console.error("Service worker registration failed", error);
+        clearStoredSelection();
+        return;
+      }
+
+      // A saved button state is not proof that Push is still active.
+      // Always reconcile local state with the browser's real subscription.
+      if (Notification.permission !== "granted") {
+        clearStoredSelection();
+        return;
+      }
+
+      try {
+        const registration = await navigator.serviceWorker.ready;
+        let subscription = await registration.pushManager.getSubscription();
+        if (!subscription) {
+          clearStoredSelection();
+          return;
+        }
+
+        // If VAPID keys were changed, the old subscription cannot be reused.
+        // Remove it automatically so the next tap creates a clean subscription.
+        const keyResponse = await fetch("/api/push/public-key", { cache: "no-store" });
+        const keyData = await keyResponse.json();
+        if (keyResponse.ok && keyData.publicKey && !subscriptionMatchesPublicKey(subscription, keyData.publicKey)) {
+          await fetch("/api/push/unsubscribe", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ endpoint: subscription.endpoint }),
+          }).catch(() => undefined);
+          await subscription.unsubscribe().catch(() => false);
+          subscription = null;
+          clearStoredSelection();
+          return;
+        }
+
+        const statusResponse = await fetch("/api/push/status", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+          cache: "no-store",
+        });
+        const statusData = await statusResponse.json();
+
+        if (statusResponse.ok) {
+          const serverMachines = normalizeMachineNos(statusData.machineNos);
+          if (serverMachines.length > 0) {
+            persistSelection(serverMachines);
+            return;
+          }
+
+          // The server is the source of truth. A missing DB row usually means the
+          // previous customer's cycle already ended, so clear stale local state
+          // instead of silently subscribing that customer to the next cycle.
+          clearStoredSelection();
+          return;
+        }
+
+        // If the status check has a transient error, keep the last known UI state.
+        persistSelection(saved);
+      } catch (error) {
+        console.error("Push state reconciliation failed", error);
+        persistSelection(saved);
+      }
+    };
+
+    void initPush();
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -157,6 +301,20 @@ export default function Dashboard() {
     const timer = window.setTimeout(() => setToast(null), 7000);
     return () => window.clearTimeout(timer);
   }, [toast]);
+
+  useEffect(() => {
+    if (machines.length === 0 || selectedMachines.length === 0) return;
+    const activeSelections = selectedMachines.filter((machineNo) => {
+      const machine = machines.find((item) => item.machine_no === machineNo);
+      return Boolean(machine && !machine.is_maintenance && machine.status === "running");
+    });
+
+    if (activeSelections.length === selectedMachines.length) return;
+    if (activeSelections.length > 0) localStorage.setItem(STORAGE_KEY, JSON.stringify(activeSelections));
+    else localStorage.removeItem(STORAGE_KEY);
+    LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    setSelectedMachines(activeSelections);
+  }, [machines, selectedMachines]);
 
   useEffect(() => {
     if (!selectedMachines.length) return;
@@ -213,6 +371,28 @@ export default function Dashboard() {
       throw new Error("อุปกรณ์นี้ไม่รองรับ Web Push");
     }
 
+    const normalizedNext = normalizeMachineNos(nextMachines);
+    await navigator.serviceWorker.register("/sw.js");
+    const registration = await navigator.serviceWorker.ready;
+    let subscription = await registration.pushManager.getSubscription();
+
+    // No machines selected = remove both the server row and browser subscription.
+    // This prevents stale subscriptions from surviving between Safari and Home Screen PWA.
+    if (normalizedNext.length === 0) {
+      if (subscription) {
+        await fetch("/api/push/unsubscribe", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ endpoint: subscription.endpoint }),
+        }).catch(() => undefined);
+        await subscription.unsubscribe().catch(() => false);
+      }
+      localStorage.removeItem(STORAGE_KEY);
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+      setSelectedMachines([]);
+      return [];
+    }
+
     let currentPermission = Notification.permission;
     if (currentPermission === "default") currentPermission = await Notification.requestPermission();
     setPermission(currentPermission);
@@ -222,8 +402,17 @@ export default function Dashboard() {
     const keyData = await keyResponse.json();
     if (!keyResponse.ok) throw new Error(keyData.error || "ยังไม่ได้ตั้งค่า Web Push บนเซิร์ฟเวอร์");
 
-    const registration = await navigator.serviceWorker.ready;
-    let subscription = await registration.pushManager.getSubscription();
+    // Recreate automatically if an old browser subscription belongs to an old VAPID key.
+    if (subscription && !subscriptionMatchesPublicKey(subscription, keyData.publicKey)) {
+      await fetch("/api/push/unsubscribe", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ endpoint: subscription.endpoint }),
+      }).catch(() => undefined);
+      await subscription.unsubscribe().catch(() => false);
+      subscription = null;
+    }
+
     if (!subscription) {
       subscription = await registration.pushManager.subscribe({
         userVisibleOnly: true,
@@ -234,14 +423,15 @@ export default function Dashboard() {
     const response = await fetch("/api/push/subscribe", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ subscription: subscription.toJSON(), machineNos: nextMachines }),
+      body: JSON.stringify({ subscription: subscription.toJSON(), machineNos: normalizedNext }),
     });
     const data = await response.json();
     if (!response.ok) throw new Error(data.error || "บันทึกการแจ้งเตือนไม่สำเร็จ");
 
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(nextMachines));
-    setSelectedMachines(nextMachines);
-    return nextMachines;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalizedNext));
+    LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
+    setSelectedMachines(normalizedNext);
+    return normalizedNext;
   }, [isIosNeedsInstall]);
 
   const toggleNotification = useCallback(async (machineNo: number) => {
@@ -275,6 +465,7 @@ export default function Dashboard() {
         await subscription.unsubscribe();
       }
       localStorage.removeItem(STORAGE_KEY);
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
       setSelectedMachines([]);
       setPushMessage("ปิดการแจ้งเตือนทุกเครื่องแล้ว");
     } catch {
@@ -289,7 +480,7 @@ export default function Dashboard() {
       <section className="hero">
         <div>
           <div className="brandRow">
-            <div className="logoMark">C</div>
+            <div className="logoMark"><img className="logoMarkIcon" src="/washer-mark.svg" alt="" aria-hidden="true" /></div>
             <div>
               <div className="eyebrow">CVP LAUNDRY</div>
               <h1>สถานะเครื่องซัก / อบผ้า</h1>
@@ -313,7 +504,7 @@ export default function Dashboard() {
             <div className="summaryItem"><span className="summaryNumber">{counts.maintenance}</span><span>ปิดปรับปรุง</span></div>
           </>
         )}
-        <div className="lastUpdate">อัปเดต {lastUpdated ? timeText(lastUpdated.toISOString()) : "—"}</div>
+        <div className="lastUpdate">อัปเดต {updateTimeText(lastUpdated)}</div>
       </section>
 
       <section className="notificationPanel" aria-live="polite">

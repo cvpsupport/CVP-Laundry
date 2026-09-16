@@ -14,7 +14,7 @@ export default async function QRPage() {
   return (
     <main className="qrPage">
       <section className="qrPoster">
-        <div className="logoMark large">C</div>
+        <div className="logoMark large"><img className="logoMarkIcon" src="/washer-mark.svg" alt="" aria-hidden="true" /></div>
         <p className="eyebrow">CVP LAUNDRY</p>
         <h1>เช็กสถานะเครื่องซักผ้า</h1>
         <p>สแกน QR เดียว ดูได้ครบทั้ง 4 เครื่อง</p>
